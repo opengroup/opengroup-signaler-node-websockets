@@ -11,7 +11,7 @@ app.use(function (req, res) {
 });
 
 var rooms = {};
-var connectionsStrings = [];
+var connectionsStrings = {};
 
 wss.on('connection', function connection(ws) {
     var location = url.parse(ws.upgradeReq.url, true);
@@ -56,18 +56,31 @@ wss.on('connection', function connection(ws) {
         var index = rooms[roomName].indexOf(ws);
         if (index > -1) {
             rooms[roomName].splice(index, 1);
+            removeConnectionStringsForUuid(roomName, ws.uuid);
         }
     })
 });
 
+function removeConnectionStringsForUuid (roomName, uuid) {
+    connectionsStrings[roomName].forEach((connectionsString, delta) => {
+        var participants = connectionsString.split('_');
+
+        if (participants[0] == uuid || participants[1] == uuid) {
+            connectionsStrings[roomName].splice(delta, 1);
+        }
+    });
+}
+
 function connectEveryone (roomName) {
+    if (!connectionsStrings[roomName]) { connectionsStrings[roomName] = []; }
+
     rooms[roomName].forEach(function (outerWs) {
         rooms[roomName].forEach(function (innerWs) {
             if (outerWs.uuid != innerWs.uuid &&
-                connectionsStrings.indexOf(outerWs.uuid + '_' + innerWs.uuid) == -1 &&
-                connectionsStrings.indexOf(innerWs.uuid + '_' + outerWs.uuid) == -1) {
+                connectionsStrings[roomName].indexOf(outerWs.uuid + '_' + innerWs.uuid) == -1 &&
+                connectionsStrings[roomName].indexOf(innerWs.uuid + '_' + outerWs.uuid) == -1) {
 
-                connectionsStrings.push(outerWs.uuid + '_' + innerWs.uuid);
+                connectionsStrings[roomName].push(outerWs.uuid + '_' + innerWs.uuid);
 
                 innerWs.send(JSON.stringify({
                     command: 'create-offer',
